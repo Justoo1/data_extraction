@@ -1,0 +1,20 @@
+# Core Django
+Django
+whitenoise
+python-dotenv
+
+# PDF Processing
+PyPDF2
+pdfminer.six
+
+# Data Processing
+pandas
+numpy
+pyreadstat
+xport
+
+# API/HTTP
+requests
+
+# Utils
+tqdm

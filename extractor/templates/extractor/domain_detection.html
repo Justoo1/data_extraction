@@ -1,0 +1,131 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}Detecting Domains - SENDIG Data Extractor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <!-- Progress Indicator -->
+        <div class="d-flex justify-content-center">
+            <div class="step-item completed">
+                <div class="step-number">1</div>
+                <div class="step-title">Upload</div>
+            </div>
+            <div class="step-item active">
+                <div class="step-number">2</div>
+                <div class="step-title">Detect Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <div class="step-title">Select Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <div class="step-title">Process</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">5</div>
+                <div class="step-title">Results</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-search me-2"></i>Detecting SENDIG Domains
+                </h4>
+            </div>
+            <div class="card-body text-center p-5">
+                <div class="spinner-border text-primary mb-4" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h3 class="mb-4">Analyzing Document</h3>
+                <p class="lead mb-4">
+                    Our AI is analyzing your PDF to identify SENDIG domains and locate data within the document.
+                    This may take a few minutes depending on the document size and complexity.
+                </p>
+                
+                <div class="progress mb-4">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                         role="progressbar" id="analysis-progress" style="width: 0%"></div>
+                </div>
+                
+                <div id="status-message" class="text-muted mb-4">
+                    Initializing analysis...
+                </div>
+                
+                <form method="post" id="detect-form" class="d-none">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-check-circle me-2"></i>Continue to Domain Selection
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Simulate analysis progress
+    document.addEventListener('DOMContentLoaded', function() {
+        const progressBar = document.getElementById('analysis-progress');
+        const statusMessage = document.getElementById('status-message');
+        const detectForm = document.getElementById('detect-form');
+        
+        // Status messages to show during analysis
+        const statusMessages = [
+            "Initializing analysis...",
+            "Extracting text from PDF...",
+            "Identifying SENDIG domain patterns...",
+            "Analyzing page content...",
+            "Matching to SENDIG standards...",
+            "Determining domain boundaries...",
+            "Finalizing analysis results..."
+        ];
+        
+        let progress = 0;
+        let messageIndex = 0;
+        
+        const interval = setInterval(function() {
+            progress += Math.random() * 5; // Random progress increment
+            
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+                statusMessage.textContent = "Analysis complete! Ready to proceed.";
+                statusMessage.classList.remove('text-muted');
+                statusMessage.classList.add('text-success');
+                detectForm.classList.remove('d-none');
+                
+                // Auto-submit after a short delay if not in development
+                {% if not debug %}
+                setTimeout(function() {
+                    detectForm.submit();
+                }, 1500);
+                {% endif %}
+            } else {
+                // Update progress bar
+                progressBar.style.width = progress + '%';
+                
+                // Update status message occasionally
+                if (progress > messageIndex * (100 / statusMessages.length)) {
+                    statusMessage.textContent = statusMessages[messageIndex];
+                    messageIndex = Math.min(messageIndex + 1, statusMessages.length - 1);
+                }
+            }
+        }, 300);
+        
+        // Submit the form to start actual analysis
+        setTimeout(function() {
+            const form = document.getElementById('detect-form');
+            form.submit();
+        }, 500);
+    });
+</script>
+{% endblock %}

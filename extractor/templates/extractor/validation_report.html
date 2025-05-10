@@ -1,0 +1,285 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}Validation Report - {{ pdf.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .validation-summary {
+        background: #f8f9fa;
+        border-left: 4px solid #007bff;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .domain-validation {
+        margin-bottom: 30px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .domain-header {
+        background: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .validation-item {
+        padding: 10px 15px;
+        border-bottom: 1px solid #f1f3f4;
+    }
+    .validation-item:last-child {
+        border-bottom: none;
+    }
+    .error-item {
+        background: #fff5f5;
+        border-left: 4px solid #dc3545;
+    }
+    .warning-item {
+        background: #fffaf0;
+        border-left: 4px solid #ffc107;
+    }
+    .info-item {
+        background: #f0f8ff;
+        border-left: 4px solid #17a2b8;
+    }
+    .severity-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .field-tag {
+        background: #e9ecef;
+        color: #495057;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+    .extraction-metadata {
+        background: #f7f7f7;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+    }
+    .chart-container {
+        max-width: 500px;
+        margin: 20px auto;
+    }
+    .progress-ring {
+        transform: rotate(-90deg);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'extractor:home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'extractor:results' pdf_id=pdf.id %}">Results</a></li>
+                    <li class="breadcrumb-item active">Validation Report</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Validation Report
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Overall Summary -->
+                    <div class="validation-summary">
+                        <h5>Overall Summary</h5>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3 class="text-primary">{{ validation_summary.domains|length }}</h3>
+                                    <p class="text-muted mb-0">Domains Validated</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3 class="text-success">{{ validation_summary.overall.total_records }}</h3>
+                                    <p class="text-muted mb-0">Total Records</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3 class="text-danger">{{ validation_summary.overall.total_errors }}</h3>
+                                    <p class="text-muted mb-0">Total Errors</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3 class="text-warning">{{ validation_summary.overall.total_warnings }}</h3>
+                                    <p class="text-muted mb-0">Total Warnings</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Validation Status Chart -->
+                    <div class="chart-container">
+                        <canvas id="validationChart"></canvas>
+                    </div>
+
+                    <!-- Domain-by-Domain Results -->
+                    <h5 class="mt-5 mb-3">Domain Validation Details</h5>
+                    
+                    {% for domain in validation_summary.domains %}
+                    <div class="domain-validation">
+                        <div class="domain-header">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h6 class="mb-0">
+                                        <span class="badge bg-primary me-2">{{ domain.domain_code }}</span>
+                                        {{ domain.domain_name }}
+                                    </h6>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <span class="badge bg-success me-2">{{ domain.record_count }} records</span>
+                                    <span class="badge bg-danger me-2">{{ domain.error_count }} errors</span>
+                                    <span class="badge bg-warning">{{ domain.warning_count }} warnings</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Extraction Metadata -->
+                        <div class="extraction-metadata">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>Strategy:</strong> {{ domain.metadata.strategy_used|default:"N/A" }}
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Confidence:</strong> 
+                                    <span class="{% if domain.metadata.confidence >= 0.7 %}text-success{% elif domain.metadata.confidence >= 0.4 %}text-warning{% else %}text-danger{% endif %}">
+                                        {{ domain.metadata.confidence|floatformat:2 }}
+                                    </span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Tables Extracted:</strong> {{ domain.metadata.tables_extracted|default:0 }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Validation Issues -->
+                        {% if domain.errors or domain.warnings %}
+                            {% for error in domain.errors %}
+                            <div class="validation-item error-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <span class="badge bg-danger severity-badge">ERROR</span>
+                                        {% if error.field %}
+                                            <span class="field-tag">{{ error.field }}</span>
+                                        {% endif %}
+                                        <p class="mb-0 mt-1">{{ error.message }}</p>
+                                        {% if error.value %}
+                                            <small class="text-muted">Value: {{ error.value }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="fixValidationIssue('{{ domain.domain_code }}', '{{ error.field }}', 'error')">
+                                        <i class="fas fa-tools"></i> Fix
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            
+                            {% for warning in domain.warnings %}
+                            <div class="validation-item warning-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <span class="badge bg-warning severity-badge">WARNING</span>
+                                        {% if warning.field %}
+                                            <span class="field-tag">{{ warning.field }}</span>
+                                        {% endif %}
+                                        <p class="mb-0 mt-1">{{ warning.message }}</p>
+                                        {% if warning.value %}
+                                            <small class="text-muted">Value: {{ warning.value }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="reviewWarning('{{ domain.domain_code }}', '{{ warning.field }}', 'warning')">
+                                        <i class="fas fa-eye"></i> Review
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="validation-item info-item">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                No validation issues found for this domain.
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+
+                    <!-- Action Buttons -->
+                    <div class="text-center mt-4">
+                        <a href="{% url 'extractor:download_all' pdf_id=pdf.id %}" class="btn btn-primary me-2">
+                            <i class="fas fa-download me-2"></i>Download Complete Package
+                        </a>
+                        <a href="{% url 'extractor:results' pdf_id=pdf.id %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Results
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Validation Status Chart
+    const ctx = document.getElementById('validationChart').getContext('2d');
+    const validationChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Clean', 'With Warnings', 'With Errors'],
+            datasets: [{
+                data: [
+                    {{ validation_summary.domains|length }} - {{ validation_summary.overall.domains_with_errors }} - {% widthratio validation_summary.overall.total_warnings 1 0 %},
+                    {% widthratio validation_summary.overall.total_warnings 1 0 %},
+                    {{ validation_summary.overall.domains_with_errors }}
+                ],
+                backgroundColor: [
+                    '#28a745',
+                    '#ffc107',
+                    '#dc3545'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                title: {
+                    display: true,
+                    text: 'Domain Validation Status'
+                }
+            }
+        }
+    });
+    
+    // Functions for handling validation issues
+    function fixValidationIssue(domainCode, field, severity) {
+        // Implement fix functionality
+        console.log(`Fixing ${severity} in ${domainCode}.${field}`);
+        // Could redirect to an edit page or open a modal
+    }
+    
+    function reviewWarning(domainCode, field, severity) {
+        // Implement review functionality
+        console.log(`Reviewing ${severity} in ${domainCode}.${field}`);
+        // Could open a modal with details and options
+    }
+</script>
+{% endblock %}

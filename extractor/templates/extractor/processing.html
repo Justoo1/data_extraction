@@ -1,0 +1,93 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}Processing Domains - SENDIG Data Extractor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <!-- Progress Indicator -->
+        <div class="d-flex justify-content-center">
+            <div class="step-item completed">
+                <div class="step-number">1</div>
+                <div class="step-title">Upload</div>
+            </div>
+            <div class="step-item completed">
+                <div class="step-number">2</div>
+                <div class="step-title">Detect Domains</div>
+            </div>
+            <div class="step-item completed">
+                <div class="step-number">3</div>
+                <div class="step-title">Select Domains</div>
+            </div>
+            <div class="step-item active">
+                <div class="step-number">4</div>
+                <div class="step-title">Process</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">5</div>
+                <div class="step-title">Results</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-cogs me-2"></i>Processing SENDIG Domains
+                </h4>
+            </div>
+            <div class="card-body text-center p-5">
+                <div class="spinner-border text-primary mb-4" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h3 class="mb-4" id="processing-title">Extracting SENDIG Data</h3>
+                <p class="lead mb-4">
+                    Our AI is extracting structured data for the selected domains and generating XPT files.
+                    This process may take several minutes depending on the number of domains and complexity.
+                </p>
+                
+                <div class="progress mb-4">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                         role="progressbar" id="processing-progress" style="width: 0%"></div>
+                </div>
+                
+                <div id="current-domain" class="alert alert-info mb-4">
+                    <i class="fas fa-sync fa-spin me-2"></i>
+                    <span>Initializing processing...</span>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6 mx-auto">
+                        <div class="card bg-light">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Domains processed:</span>
+                                    <span id="domains-count">0 / 0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Estimated time remaining:</span>
+                                    <span id="time-remaining">Calculating...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="completed-message" class="d-none">
+                    <div class="alert alert-success mb-4">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Processing complete! All selected domains have been processed successfully.
+                    </div>
+                    
+                    <a href="" id="results-link" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-file-medical-alt me-2"></i>View Results
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

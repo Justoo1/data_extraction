@@ -1,0 +1,218 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}Upload PDF - SENDIG Data Extractor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 60px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .upload-area:hover, .upload-area.dragover {
+        border-color: #007bff;
+        background-color: #f1f8ff;
+    }
+    .upload-icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+        color: #6c757d;
+    }
+    #file-name {
+        margin-top: 15px;
+        font-weight: 500;
+    }
+    .progress {
+        display: none;
+        height: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <!-- Progress Indicator -->
+        <div class="d-flex justify-content-center">
+            <div class="step-item completed">
+                <div class="step-number">1</div>
+                <div class="step-title">Upload</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">2</div>
+                <div class="step-title">Detect Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <div class="step-title">Select Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <div class="step-title">Process</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">5</div>
+                <div class="step-title">Results</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-file-upload me-2"></i>Upload PDF Document
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="upload-form">
+                    {% csrf_token %}
+                    <div class="upload-area" id="upload-area" onclick="document.getElementById('pdf_file').click();">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <h4>Drag & Drop your PDF file here</h4>
+                        <p>or click to browse</p>
+                        <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" style="display: none;">
+                        <div id="file-name"></div>
+                    </div>
+                    
+                    <div class="progress mt-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    
+                    <div class="mt-4 text-center">
+                        <button type="submit" class="btn btn-primary btn-lg px-5" id="upload-btn" disabled>
+                            <i class="fas fa-upload me-2"></i>Upload & Analyze
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer bg-light">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>
+                            <i class="fas fa-info-circle text-primary me-2"></i>Requirements
+                        </h5>
+                        <ul class="mb-0">
+                            <li>PDF file format only</li>
+                            <li>Toxicology data following SENDIG standards</li>
+                            <li>Maximum file size: 50MB</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>
+                            <i class="fas fa-lightbulb text-primary me-2"></i>Tips
+                        </h5>
+                        <ul class="mb-0">
+                            <li>Ensure PDF is not password protected</li>
+                            <li>Text should be selectable/extractable</li>
+                            <li>Properly formatted tables improve extraction</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // File upload handling
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('pdf_file');
+    const fileName = document.getElementById('file-name');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadForm = document.getElementById('upload-form');
+    const progressBar = document.querySelector('.progress');
+    const progressBarInner = document.querySelector('.progress-bar');
+    
+    // Handle drag and drop events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight() {
+        uploadArea.classList.add('dragover');
+    }
+    
+    function unhighlight() {
+        uploadArea.classList.remove('dragover');
+    }
+    
+    // Handle file drop
+    uploadArea.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            fileInput.files = files;
+            updateFileName();
+        }
+    }
+    
+    // Handle file selection
+    fileInput.addEventListener('change', updateFileName);
+    
+    function updateFileName() {
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            
+            if (file.type !== 'application/pdf') {
+                fileName.innerHTML = `<span class="text-danger">Error: Only PDF files are allowed</span>`;
+                uploadBtn.disabled = true;
+                return;
+            }
+            
+            if (file.size > 50 * 1024 * 1024) { // 50MB
+                fileName.innerHTML = `<span class="text-danger">Error: File size exceeds 50MB limit</span>`;
+                uploadBtn.disabled = true;
+                return;
+            }
+            
+            fileName.innerHTML = `<span class="text-success">Selected: ${file.name}</span>`;
+            uploadBtn.disabled = false;
+        } else {
+            fileName.innerHTML = '';
+            uploadBtn.disabled = true;
+        }
+    }
+    
+    // Handle form submission
+    uploadForm.addEventListener('submit', function(e) {
+        progressBar.style.display = 'flex';
+        progressBarInner.style.width = '0%';
+        
+        // Simulate upload progress
+        let progress = 0;
+        const interval = setInterval(function() {
+            progress += Math.random() * 10;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+            }
+            progressBarInner.style.width = progress + '%';
+        }, 300);
+    });
+</script>
+{% endblock %}

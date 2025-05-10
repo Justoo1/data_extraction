@@ -1,0 +1,280 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}Detecting Domains - SENDIG Data Extractor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <!-- Progress Indicator -->
+        <div class="d-flex justify-content-center">
+            <div class="step-item completed">
+                <div class="step-number">1</div>
+                <div class="step-title">Upload</div>
+            </div>
+            <div class="step-item active">
+                <div class="step-number">2</div>
+                <div class="step-title">Detect Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <div class="step-title">Select Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <div class="step-title">Process</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">5</div>
+                <div class="step-title">Results</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-search me-2"></i>Detecting SENDIG Domains
+                </h4>
+            </div>
+            <div class="card-body text-center p-5">
+                <div class="spinner-border text-primary mb-4" style="width: 3rem; height: 3rem;" role="status" id="loading-spinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="complete-icon" class="d-none mb-4">
+                    <i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>
+                </div>
+                <div id="error-icon" class="d-none mb-4">
+                    <i class="fas fa-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                </div>
+                <h3 class="mb-4">Analyzing Document</h3>
+                <p class="lead mb-4">
+                    Our AI is analyzing your PDF to identify SENDIG domains and locate data within the document.
+                    This may take a few minutes depending on the document size and complexity.
+                </p>
+                
+                <div class="progress mb-4">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                         role="progressbar" id="analysis-progress" style="width: 0%"></div>
+                </div>
+                
+                <div id="status-message" class="text-muted mb-4">
+                    Initializing analysis...
+                </div>
+                
+                <form method="post" id="detect-form" class="d-none">
+                    {% csrf_token %}
+                    <input type="hidden" name="analysis_complete" value="true" id="analysis-complete-field">
+                    <button type="submit" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-check-circle me-2"></i>Continue to Domain Selection
+                    </button>
+                </form>
+                
+                <div id="retry-button" class="d-none">
+                    <button type="button" class="btn btn-danger btn-lg px-5" onclick="startDomainDetection()">
+                        <i class="fas fa-redo me-2"></i>Retry Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Start the detection process when the page loads
+        startDomainDetection();
+    });
+    
+    // Elements
+    const progressBar = document.getElementById('analysis-progress');
+    const statusMessage = document.getElementById('status-message');
+    const detectForm = document.getElementById('detect-form');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const completeIcon = document.getElementById('complete-icon');
+    const errorIcon = document.getElementById('error-icon');
+    const retryButton = document.getElementById('retry-button');
+    const analysisCompleteField = document.getElementById('analysis-complete-field');
+    
+    // Status messages to show during analysis
+    const statusMessages = [
+        "Initializing analysis...",
+        "Extracting text from PDF...",
+        "Identifying SENDIG domain patterns...",
+        "Analyzing page content...",
+        "Matching to SENDIG standards...",
+        "Determining domain boundaries...",
+        "Finalizing analysis results..."
+    ];
+    
+    let progress = 0;
+    let messageIndex = 0;
+    let progressInterval;
+    let statusCheckInterval;
+    
+    // Function to start the domain detection process
+    function startDomainDetection() {
+        // Reset UI elements
+        resetUI();
+        
+        // Start the simulated progress animation
+        startProgressAnimation();
+        
+        // Call the API to start detection
+        fetch('{% url "extractor:api_detect_domains" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                document_id: '{{ pdf.id }}'
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                // Start checking the status periodically
+                startStatusChecking();
+            } else {
+                showError('Failed to start domain detection: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error starting domain detection:', error);
+            showError('Error starting domain detection: ' + error.message);
+        });
+    }
+    
+    // Function to reset UI elements
+    function resetUI() {
+        // Clear any existing intervals
+        if (progressInterval) clearInterval(progressInterval);
+        if (statusCheckInterval) clearInterval(statusCheckInterval);
+        
+        // Reset progress and message index
+        progress = 0;
+        messageIndex = 0;
+        
+        // Reset UI elements
+        progressBar.style.width = '0%';
+        progressBar.classList.remove('bg-danger');
+        progressBar.classList.add('bg-primary', 'progress-bar-animated', 'progress-bar-striped');
+        
+        statusMessage.textContent = "Initializing analysis...";
+        statusMessage.classList.remove('text-success', 'text-danger');
+        statusMessage.classList.add('text-muted');
+        
+        // Show/hide elements
+        loadingSpinner.classList.remove('d-none');
+        completeIcon.classList.add('d-none');
+        errorIcon.classList.add('d-none');
+        detectForm.classList.add('d-none');
+        retryButton.classList.add('d-none');
+    }
+    
+    // Function to start the simulated progress animation
+    function startProgressAnimation() {
+        progressInterval = setInterval(function() {
+            if (progress < 90) {  // Cap at 90% until we get confirmation
+                progress += Math.random() * 2; // Slower progress increment
+                progressBar.style.width = progress + '%';
+                
+                // Update status message occasionally
+                if (progress > messageIndex * (90 / statusMessages.length)) {
+                    statusMessage.textContent = statusMessages[messageIndex];
+                    messageIndex = Math.min(messageIndex + 1, statusMessages.length - 1);
+                }
+            }
+        }, 500);
+    }
+    
+    // Function to start checking the detection status
+    function startStatusChecking() {
+        statusCheckInterval = setInterval(function() {
+            fetch('{% url "extractor:api_domain_detection_status" pdf_id=pdf.id %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ANALYZED') {
+                    // Domain detection complete
+                    showComplete();
+                } else if (data.status === 'FAILED') {
+                    // Domain detection failed
+                    showError('Domain detection failed');
+                }
+                // Otherwise, continue checking
+            })
+            .catch(error => {
+                console.error('Error checking status:', error);
+                // Don't show error here, keep checking
+            });
+        }, 2000);  // Check every 2 seconds
+    }
+    
+    // Function to show completion state
+    function showComplete() {
+        // Clear intervals
+        if (progressInterval) clearInterval(progressInterval);
+        if (statusCheckInterval) clearInterval(statusCheckInterval);
+        
+        // Update progress to 100%
+        progress = 100;
+        progressBar.style.width = '100%';
+        
+        // Update status message
+        statusMessage.textContent = "Analysis complete! Ready to proceed.";
+        statusMessage.classList.remove('text-muted');
+        statusMessage.classList.add('text-success');
+        
+        // Show/hide elements
+        loadingSpinner.classList.add('d-none');
+        completeIcon.classList.remove('d-none');
+        detectForm.classList.remove('d-none');
+        
+        // Set the analysis complete flag
+        analysisCompleteField.value = "true";
+        
+        // Auto-submit after a short delay if not in development
+        {% if not debug %}
+        setTimeout(function() {
+            detectForm.submit();
+        }, 1500);
+        {% endif %}
+    }
+    
+    // Function to show error state
+    function showError(message) {
+        // Clear intervals
+        if (progressInterval) clearInterval(progressInterval);
+        if (statusCheckInterval) clearInterval(statusCheckInterval);
+        
+        // Update progress bar
+        progressBar.classList.remove('progress-bar-animated', 'bg-primary');
+        progressBar.classList.add('bg-danger');
+        
+        // Update status message
+        statusMessage.textContent = message || "Error during analysis. Please try again.";
+        statusMessage.classList.remove('text-muted');
+        statusMessage.classList.add('text-danger');
+        
+        // Show/hide elements
+        loadingSpinner.classList.add('d-none');
+        errorIcon.classList.remove('d-none');
+        retryButton.classList.remove('d-none');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}Select Domains - SENDIG Data Extractor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .domain-card {
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    .domain-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    }
+    .domain-card.selected {
+        border-color: #28a745;
+        background-color: #f8fff8;
+    }
+    .domain-card.selected .card-header {
+        background-color: #28a745;
+        color: white;
+    }
+    .domain-card .form-check-input {
+        width: 1.3em;
+        height: 1.3em;
+    }
+    .confidence-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    .pages-input {
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.375rem 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <!-- Progress Indicator -->
+        <div class="d-flex justify-content-center">
+            <div class="step-item completed">
+                <div class="step-number">1</div>
+                <div class="step-title">Upload</div>
+            </div>
+            <div class="step-item completed">
+                <div class="step-number">2</div>
+                <div class="step-title">Detect Domains</div>
+            </div>
+            <div class="step-item active">
+                <div class="step-number">3</div>
+                <div class="step-title">Select Domains</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <div class="step-title">Process</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">5</div>
+                <div class="step-title">Results</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-check-square me-2"></i>Select SENDIG Domains
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Document Analysis Complete:</strong> 
+                    The system has detected the following SENDIG domains in your document. 
+                    Please review, adjust page ranges if needed, and select which domains to process.
+                </div>
+                
+                <form method="post" id="domains-form">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        {% for domain in domains %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card domain-card {% if domain.selected %}selected{% endif %}" id="card-{{ domain.domain.code }}">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input domain-checkbox" type="checkbox" 
+                                               name="selected_domains" value="{{ domain.domain.code }}" 
+                                               id="checkbox-{{ domain.domain.code }}" 
+                                               {% if domain.selected %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="checkbox-{{ domain.domain.code }}">
+                                            {{ domain.domain.code }}
+                                        </label>
+                                    </div>
+                                    
+                                    <span class="badge {% if domain.confidence_score >= 0.7 %}bg-success{% elif domain.confidence_score >= 0.4 %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ domain.confidence_score|floatformat:2 }} confidence
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ domain.domain.name }}</h5>
+                                    <p class="card-text small">{{ domain.domain.description|truncatewords:30 }}</p>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label d-flex justify-content-between">
+                                            <span>Pages:</span>
+                                            <small class="text-muted">e.g., 1-3, 5, 7-9</small>
+                                        </label>
+                                        <input type="text" name="pages_{{ domain.domain.code }}" 
+                                               class="form-control form-control-sm pages-input" 
+                                               value="{{ domain.pages }}" 
+                                               placeholder="Page numbers or ranges">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                No SENDIG domains were detected in your document. This may indicate that your document 
+                                doesn't follow SENDIG standards or the content couldn't be properly analyzed.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <button type="button" id="select-all-btn" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-check-double me-2"></i>Select All
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" id="deselect-all-btn" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-times-circle me-2"></i>Deselect All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg px-5" id="process-btn">
+                            <i class="fas fa-cogs me-2"></i>Process Selected Domains
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const domainCards = document.querySelectorAll('.domain-card');
+        const checkboxes = document.querySelectorAll('.domain-checkbox');
+        const selectAllBtn = document.getElementById('select-all-btn');
+        const deselectAllBtn = document.getElementById('deselect-all-btn');
+        const processBtn = document.getElementById('process-btn');
+        
+        // Toggle selection when clicking on card
+        domainCards.forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Don't toggle if clicking on the input itself or on the pages input
+                if (e.target.type === 'checkbox' || e.target.classList.contains('pages-input')) {
+                    return;
+                }
+                
+                const cardId = this.id;
+                const checkboxId = cardId.replace('card-', 'checkbox-');
+                const checkbox = document.getElementById(checkboxId);
+                
+                checkbox.checked = !checkbox.checked;
+                updateCardSelection(this, checkbox.checked);
+                updateProcessButton();
+            });
+        });
+        
+        // Toggle card selection when checkbox changes
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const cardId = this.id.replace('checkbox-', 'card-');
+                const card = document.getElementById(cardId);
+                
+                updateCardSelection(card, this.checked);
+                updateProcessButton();
+            });
+        });
+        
+        // Select all domains
+        selectAllBtn.addEventListener('click', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                const cardId = checkbox.id.replace('checkbox-', 'card-');
+                const card = document.getElementById(cardId);
+                updateCardSelection(card, true);
+            });
+            updateProcessButton();
+        });
+        
+        // Deselect all domains
+        deselectAllBtn.addEventListener('click', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                const cardId = checkbox.id.replace('checkbox-', 'card-');
+                const card = document.getElementById(cardId);
+                updateCardSelection(card, false);
+            });
+            updateProcessButton();
+        });
+        
+        // Update card appearance based on selection
+        function updateCardSelection(card, isSelected) {
+            if (isSelected) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        }
+        
+        // Update process button state
+        function updateProcessButton() {
+            const hasSelection = Array.from(checkboxes).some(checkbox => checkbox.checked);
+            processBtn.disabled = !hasSelection;
+            
+            if (hasSelection) {
+                processBtn.classList.remove('btn-secondary');
+                processBtn.classList.add('btn-primary');
+            } else {
+                processBtn.classList.remove('btn-primary');
+                processBtn.classList.add('btn-secondary');
+            }
+        }
+        
+        // Initialize button state
+        updateProcessButton();
+    });
+</script>
+{% endblock %}

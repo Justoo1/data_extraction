@@ -1,0 +1,55 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}SENDIG Data Extractor - Home{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-body text-center p-5">
+                <h1 class="display-4 mb-4">
+                    <i class="fas fa-file-medical text-primary me-3"></i>
+                    SENDIG Data Extractor
+                </h1>
+                <p class="lead mb-4">
+                    Extract structured SENDIG toxicology data from PDF documents using AI-powered analysis for FDA submissions.
+                </p>
+                <div class="row justify-content-center mt-5">
+                    <div class="col-md-4">
+                        <div class="card h-100 bg-light-blue">
+                            <div class="card-body text-center p-4">
+                                <i class="fas fa-file-pdf text-primary fa-3x mb-3"></i>
+                                <h5 class="card-title">Upload PDF</h5>
+                                <p class="card-text">Upload your toxicology PDF document to begin the extraction process.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 bg-light-blue">
+                            <div class="card-body text-center p-4">
+                                <i class="fas fa-sitemap text-primary fa-3x mb-3"></i>
+                                <h5 class="card-title">Detect Domains</h5>
+                                <p class="card-text">AI automatically identifies SENDIG domains in your document.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 bg-light-blue">
+                            <div class="card-body text-center p-4">
+                                <i class="fas fa-file-export text-primary fa-3x mb-3"></i>
+                                <h5 class="card-title">Generate XPT</h5>
+                                <p class="card-text">Create FDA-ready XPT files based on extracted SENDIG data.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-5">
+                    <a href="{% url 'extractor:upload' %}" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-upload me-2"></i> Start Extraction
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends 'extractor/base.html' %}
+
+{% block title %}View XPT - {{ extracted_data.domain.code }} - SENDIG Data Extractor{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css">
+<style>
+    .json-viewer {
+        max-height: 600px;
+        overflow-y: auto;
+        border-radius: 0.375rem;
+    }
+    .domain-header {
+        background-color: #f8f9fa;
+        border-left: 5px solid #007bff;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .record-count {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .record-card {
+        margin-bottom: 15px;
+        border-radius: 0.375rem;
+        overflow: hidden;
+    }
+    .record-card .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        font-weight: 500;
+    }
+    .variable-row {
+        border-bottom: 1px solid #f0f0f0;
+        padding: 8px 0;
+    }
+    .variable-row:last-child {
+        border-bottom: none;
+    }
+    .variable-name {
+        font-weight: 500;
+        color: #495057;
+    }
+    .variable-value {
+        font-family: 'Courier New', Courier, monospace;
+        color: #212529;
+        word-break: break-all;
+    }
+    .action-bar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 10px 0;
+        background-color: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(5px);
+        border-bottom: 1px solid #e9ecef;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="action-bar mb-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">
+                <span class="badge bg-primary">{{ extracted_data.domain.code }}</span> 
+                {{ extracted_data.domain.name }}
+            </h2>
+            <div class="btn-group">
+                <a href="{% url 'extractor:results' pdf_id=extracted_data.pdf.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Results
+                </a>
+                <a href="{% url 'extractor:download_xpt' data_id=extracted_data.id %}" class="btn btn-success">
+                    <i class="fas fa-download me-2"></i>Download XPT
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="domain-header">
+            <h4>{{ extracted_data.domain.name }}</h4>
+            <p class="mb-0">{{ extracted_data.domain.description }}</p>
+            <p class="record-count mb-0 mt-2">
+                <i class="fas fa-table me-1"></i>
+                {{ extracted_data.data.records|length }} records extracted on {{ extracted_data.extraction_date|date:"F d, Y H:i" }}
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <ul class="nav nav-tabs mb-4" id="viewTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="records-tab" data-bs-toggle="tab" data-bs-target="#records" type="button" role="tab">
+                    <i class="fas fa-table me-2"></i>Records View
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="json-tab" data-bs-toggle="tab" data-bs-target="#json" type="button" role="tab">
+                    <i class="fas fa-code me-2"></i>JSON View
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="viewTabsContent">
+            <!-- Records View Tab -->
+            <div class="tab-pane fade show active" id="records" role="tabpanel">
+                {% for record in extracted_data.data.records %}
+                <div class="card record-card">
+                    <div class="card-header">
+                        Record #{{ forloop.counter }}
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for key, value in record.items %}
+                            <div class="col-md-6">
+                                <div class="variable-row">
+                                    <div class="variable-name">{{ key }}</div>
+                                    <div class="variable-value">
+                                        {% if value %}
+                                            {{ value }}
+                                        {% else %}
+                                            <span class="text-muted">null</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    No records found in this domain.
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- JSON View Tab -->
+            <div class="tab-pane fade" id="json" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-code me-2"></i>JSON Data
+                        </h5>
+                        <button id="copy-json" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="json-viewer">
+                            <pre><code class="language-json">{{ data_json }}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Copy JSON button
+        const copyJsonBtn = document.getElementById('copy-json');
+        const jsonCode = document.querySelector('.language-json');
+        
+        copyJsonBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(jsonCode.textContent).then(function() {
+                const originalText = copyJsonBtn.innerHTML;
+                copyJsonBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                copyJsonBtn.classList.remove('btn-outline-primary');
+                copyJsonBtn.classList.add('btn-success');
+                
+                setTimeout(function() {
+                    copyJsonBtn.innerHTML = originalText;
+                    copyJsonBtn.classList.remove('btn-success');
+                    copyJsonBtn.classList.add('btn-outline-primary');
+                }, 2000);
+            });
+        });
+    });
+</script>
+{% endblock %}
