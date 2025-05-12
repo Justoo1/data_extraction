@@ -685,7 +685,7 @@ class EnhancedDataExtractor:
         
         return False
     
-    def extract_all_selected_domains(self, pdf_document: PDFDocument) -> Dict[str, ExtractedData]:
+    def extract_all_selected_domains(self, pdf_document) -> Dict[str, ExtractedData]:
         """
         Extract data for all selected domains in a PDF
         
@@ -696,15 +696,17 @@ class EnhancedDataExtractor:
             Dictionary mapping domain codes to ExtractedData instances
         """
         try:
-            # Update PDF status to processing
-            pdf_document.status = 'PROCESSING'
-            pdf_document.save()
-            
             # Get all selected domains
             selected_domains = DetectedDomain.objects.filter(
                 pdf=pdf_document,
                 selected=True
             )
+            
+            # If no selected domains, complete immediately
+            if not selected_domains:
+                pdf_document.status = 'COMPLETED'
+                pdf_document.save()
+                return {}
             
             results = {}
             
@@ -713,6 +715,9 @@ class EnhancedDataExtractor:
                     logger.info(f"Processing domain {detected_domain.domain.code}")
                     extracted_data = self.extract_data_for_domain(pdf_document, detected_domain)
                     results[detected_domain.domain.code] = extracted_data
+                    
+                    # Save progress after each domain
+                    pdf_document.save()
                     
                 except Exception as e:
                     logger.error(f"Error processing domain {detected_domain.domain.code}: {str(e)}")

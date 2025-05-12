@@ -82,7 +82,8 @@
                     Please review, adjust page ranges if needed, and select which domains to process.
                 </div>
                 
-                <form method="post" id="domains-form">
+                <!-- Normal form submission, no AJAX -->
+                <form method="post" action="{% url 'extractor:select_domains' pdf_id=pdf.id %}">
                     {% csrf_token %}
                     
                     <div class="row">
@@ -146,6 +147,7 @@
                     </div>
                     
                     <div class="text-center mt-4">
+                        <!-- Normal submit button, no JavaScript interference -->
                         <button type="submit" class="btn btn-primary btn-lg px-5" id="process-btn">
                             <i class="fas fa-cogs me-2"></i>Process Selected Domains
                         </button>

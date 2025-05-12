@@ -24,12 +24,19 @@ urlpatterns = [
     # Results
     path('results/<uuid:pdf_id>/', views.ResultsView.as_view(), name='results'),
     
+    # Validation
+    path('validation-report/<uuid:pdf_id>/', views.ValidationReportView.as_view(), name='validation_report'),
+    
     # XPT File Actions
     path('view-xpt/<int:data_id>/', views.ViewXPTFileView.as_view(), name='view_xpt'),
     path('download-xpt/<int:data_id>/', views.DownloadXPTFileView.as_view(), name='download_xpt'),
     path('download-all/<uuid:pdf_id>/', views.DownloadAllFilesView.as_view(), name='download_all'),
 
-     # API Endpoints
+    # API Endpoints
     path('api/detect-domains/', api_views.api_detect_domains, name='api_detect_domains'),
     path('api/domain-detection-status/<uuid:pdf_id>/', api_views.api_domain_detection_status, name='api_domain_detection_status'),
+    
+    # Preview API
+    path('api/domain-preview/<uuid:pdf_id>/<str:domain_code>/', views.DomainPreviewAPIView.as_view(), name='domain_preview'),
+    path('api/processing-status/<uuid:pdf_id>/', views.ProcessingStatusAPIView.as_view(), name='processing_status_api'),
 ]

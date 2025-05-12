@@ -40,8 +40,11 @@
                 </h4>
             </div>
             <div class="card-body text-center p-5">
-                <div class="spinner-border text-primary mb-4" style="width: 3rem; height: 3rem;" role="status">
+                <div class="spinner-border text-primary mb-4" style="width: 3rem; height: 3rem;" role="status" id="loading-spinner">
                     <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="complete-icon" class="d-none mb-4">
+                    <i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>
                 </div>
                 <h3 class="mb-4" id="processing-title">Extracting SENDIG Data</h3>
                 <p class="lead mb-4">
@@ -65,15 +68,23 @@
                             <div class="card-body p-3">
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Domains processed:</span>
-                                    <span id="domains-count">0 / 0</span>
+                                    <span id="domains-count">0 / {{ domain_count }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between">
                                     <span>Estimated time remaining:</span>
-                                    <span id="time-remaining">Calculating...</span>
+                                    <span id="time-remaining">{{ estimated_time }} seconds</span>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+                
+                <div id="error-message" class="d-none alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="error-text"></span>
+                    <button class="btn btn-primary mt-3" onclick="window.location.reload()">
+                        <i class="fas fa-redo me-2"></i>Try Again
+                    </button>
                 </div>
                 
                 <div id="completed-message" class="d-none">
@@ -82,7 +93,7 @@
                         Processing complete! All selected domains have been processed successfully.
                     </div>
                     
-                    <a href="" id="results-link" class="btn btn-primary btn-lg px-5">
+                    <a href="{% url 'extractor:results' pdf_id=pdf.id %}" class="btn btn-primary btn-lg px-5">
                         <i class="fas fa-file-medical-alt me-2"></i>View Results
                     </a>
                 </div>
@@ -90,4 +101,141 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get elements
+        const progressBar = document.getElementById('processing-progress');
+        const currentDomainAlert = document.getElementById('current-domain');
+        const domainsCountSpan = document.getElementById('domains-count');
+        const timeRemainingSpan = document.getElementById('time-remaining');
+        const completedMessage = document.getElementById('completed-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const completeIcon = document.getElementById('complete-icon');
+        const processingTitle = document.getElementById('processing-title');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        
+        // Check if we're already processing
+        if ('{{ pdf.status }}' === 'PROCESSING') {
+            // Already processing, start polling
+            startStatusChecking();
+        } else {
+            // Need to start processing
+            startProcessing();
+        }
+        
+        function startProcessing() {
+            // Submit form via AJAX to start processing
+            fetch('{% url "extractor:process_domains" pdf_id=pdf.id %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Start checking the status periodically
+                    startStatusChecking();
+                } else {
+                    showError('Failed to start processing: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error starting processing:', error);
+                showError('Error starting processing: ' + error.message);
+            });
+        }
+        
+        // Start polling for status
+        let statusCheckInterval;
+        const pdfId = '{{ pdf.id }}';
+        const totalDomains = {{ domain_count }};
+        
+        function startStatusChecking() {
+            function checkProcessingStatus() {
+                fetch(`{% url 'extractor:processing_status' pdf_id=pdf.id %}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Status update:', data);
+                        
+                        // Update progress bar
+                        const progressPercent = Math.min((data.processed_domains / data.total_domains) * 100, 100);
+                        progressBar.style.width = progressPercent + '%';
+                        
+                        // Update domains count
+                        domainsCountSpan.textContent = `${data.processed_domains} / ${data.total_domains}`;
+                        
+                        // Update current domain
+                        if (data.current_domain) {
+                            currentDomainAlert.innerHTML = `
+                                <i class="fas fa-cogs fa-spin me-2"></i>
+                                Processing domain: <strong>${data.current_domain}</strong>
+                            `;
+                        }
+                        
+                        // Update time remaining
+                        if (data.estimated_time_remaining !== undefined) {
+                            if (data.estimated_time_remaining > 0) {
+                                const minutes = Math.floor(data.estimated_time_remaining / 60);
+                                const seconds = data.estimated_time_remaining % 60;
+                                timeRemainingSpan.textContent = `${minutes}m ${seconds}s`;
+                            } else {
+                                timeRemainingSpan.textContent = 'Almost done...';
+                            }
+                        }
+                        
+                        // Check if processing is complete
+                        if (data.status === 'COMPLETED') {
+                            clearInterval(statusCheckInterval);
+                            showCompletion();
+                        } else if (data.status === 'FAILED') {
+                            clearInterval(statusCheckInterval);
+                            showError('Processing failed. Please try again.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking status:', error);
+                        // Don't clear interval on error, continue checking
+                    });
+            }
+            
+            // Check status immediately and then every 2 seconds
+            checkProcessingStatus();
+            statusCheckInterval = setInterval(checkProcessingStatus, 2000);
+        }
+        
+        function showCompletion() {
+            // Update progress to 100%
+            progressBar.style.width = '100%';
+            progressBar.classList.remove('progress-bar-animated');
+            
+            // Hide loading elements
+            loadingSpinner.classList.add('d-none');
+            currentDomainAlert.classList.add('d-none');
+            
+            // Show completion elements
+            completeIcon.classList.remove('d-none');
+            processingTitle.textContent = 'Processing Complete!';
+            completedMessage.classList.remove('d-none');
+            
+            // Update final counts
+            domainsCountSpan.textContent = `${totalDomains} / ${totalDomains}`;
+            timeRemainingSpan.textContent = 'Completed';
+        }
+        
+        function showError(message) {
+            // Hide loading elements
+            loadingSpinner.classList.add('d-none');
+            currentDomainAlert.classList.add('d-none');
+            
+            // Show error message
+            errorText.textContent = message;
+            errorMessage.classList.remove('d-none');
+        }
+    });
+</script>
 {% endblock %}

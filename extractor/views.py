@@ -1,8 +1,12 @@
 import json
 import os
 import zipfile
+import threading
+import logging
 from io import BytesIO
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
@@ -243,22 +247,69 @@ class ProcessDomainsView(View):
         """Start domain processing with enhanced extraction"""
         pdf_document = get_object_or_404(PDFDocument, id=pdf_id)
         
+        # Check if this is an AJAX request (has X-Requested-With header)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Handle AJAX request for starting processing
+            pdf_document.status = 'PROCESSING'
+            pdf_document.save()
+            
+            # Start processing in background thread
+            thread = threading.Thread(
+                target=self._process_domains_background,
+                args=(pdf_document,)
+            )
+            thread.daemon = True
+            thread.start()
+            
+            # Return JSON response for AJAX
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Processing started',
+                'redirect_url': request.path  # Keep on same page to show progress
+            })
+        else:
+            # Handle regular form submission (from domain selection)
+            # In this case, we should render the processing page directly
+            selected_domains = DetectedDomain.objects.filter(pdf=pdf_document, selected=True)
+            estimated_time = len(selected_domains) * 30
+            
+            context = {
+                'pdf': pdf_document,
+                'domains': selected_domains,
+                'estimated_time': estimated_time,
+                'domain_count': len(selected_domains)
+            }
+            
+            # Immediately start processing in background
+            pdf_document.status = 'PROCESSING'
+            pdf_document.save()
+            
+            thread = threading.Thread(
+                target=self._process_domains_background,
+                args=(pdf_document,)
+            )
+            thread.daemon = True
+            thread.start()
+            
+            # Render the processing page directly
+            return render(request, 'extractor/processing.html', context)
+    
+    @staticmethod
+    def _process_domains_background(pdf_document):
+        """Process domains in background thread"""
         try:
             # Use enhanced data extractor
             extractor = EnhancedDataExtractor()
             extracted_data = extractor.extract_all_selected_domains(pdf_document)
             
-            if not extracted_data:
-                messages.warning(request, "No data was extracted from selected domains")
-            else:
-                messages.success(request, f"Successfully extracted data from {len(extracted_data)} domains")
-            
-            # Redirect to results
-            return redirect('extractor:results', pdf_id=pdf_document.id)
+            # Processing is complete, status should be updated by extractor
+            logger.info(f"Successfully processed domains for PDF {pdf_document.id}")
             
         except Exception as e:
-            messages.error(request, f"Error processing domains: {str(e)}")
-            return redirect('extractor:select_domains', pdf_id=pdf_document.id)
+            logger.error(f"Error processing domains for PDF {pdf_document.id}: {str(e)}")
+            pdf_document.status = 'FAILED'
+            pdf_document.save()
+            raise
 
 class DomainProcessingStatusView(View):
     """AJAX view for checking domain processing status with detailed progress"""

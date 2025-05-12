@@ -1,13 +1,13 @@
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 import json
 import threading
 import logging
 
-from .models import PDFDocument
-from .services.domain_detector import DomainDetector
+from .models import PDFDocument, DetectedDomain
+from .services.python_domain_detector import EnhancedDomainDetector
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _process_domain_detection(pdf_document):
         pdf_document: PDFDocument instance
     """
     try:
-        detector = DomainDetector()
+        detector = EnhancedDomainDetector()
         detector.detect_domains(pdf_document)
         
         # Update document status (should be set to 'ANALYZED' by detect_domains)
@@ -85,17 +85,33 @@ def _process_domain_detection(pdf_document):
         pdf_document.status = 'FAILED'
         pdf_document.save()
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 def api_domain_detection_status(request, pdf_id):
     """
     API endpoint to check domain detection status
+    Accepts both GET and POST requests
     """
     try:
         pdf_document = get_object_or_404(PDFDocument, id=pdf_id)
         
+        # Also include any detected domains in the response
+        detected_domains = DetectedDomain.objects.filter(pdf=pdf_document)
+        
+        domain_info = []
+        for domain in detected_domains:
+            domain_info.append({
+                'code': domain.domain.code,
+                'name': domain.domain.name,
+                'confidence': domain.confidence_score,
+                'pages': domain.pages,
+                'selected': domain.selected
+            })
+        
         return JsonResponse({
             'status': pdf_document.status,
-            'document_id': str(pdf_document.id)
+            'document_id': str(pdf_document.id),
+            'detected_domains': domain_info,
+            'domain_count': len(domain_info)
         })
         
     except Exception as e:

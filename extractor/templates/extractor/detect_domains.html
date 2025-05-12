@@ -86,8 +86,14 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Start the detection process when the page loads
-        startDomainDetection();
+        // Check if detection has already been completed
+        {% if pdf.status == 'ANALYZED' %}
+            // Skip to domain selection if already analyzed
+            window.location.href = "{% url 'extractor:select_domains' pdf_id=pdf.id %}";
+        {% else %}
+            // Start the detection process
+            startDomainDetection();
+        {% endif %}
     });
     
     // Elements
@@ -108,6 +114,7 @@
         "Analyzing page content...",
         "Matching to SENDIG standards...",
         "Determining domain boundaries...",
+        "Using AI to detect domains...",
         "Finalizing analysis results..."
     ];
     
@@ -185,12 +192,12 @@
     // Function to start the simulated progress animation
     function startProgressAnimation() {
         progressInterval = setInterval(function() {
-            if (progress < 90) {  // Cap at 90% until we get confirmation
+            if (progress < 85) {  // Cap at 85% until we get confirmation
                 progress += Math.random() * 2; // Slower progress increment
                 progressBar.style.width = progress + '%';
                 
                 // Update status message occasionally
-                if (progress > messageIndex * (90 / statusMessages.length)) {
+                if (progress > messageIndex * (85 / statusMessages.length)) {
                     statusMessage.textContent = statusMessages[messageIndex];
                     messageIndex = Math.min(messageIndex + 1, statusMessages.length - 1);
                 }
@@ -201,8 +208,9 @@
     // Function to start checking the detection status
     function startStatusChecking() {
         statusCheckInterval = setInterval(function() {
+            // Use GET method for status check
             fetch('{% url "extractor:api_domain_detection_status" pdf_id=pdf.id %}', {
-                method: 'POST',
+                method: 'GET',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}'
                 }
@@ -214,7 +222,13 @@
                     showComplete();
                 } else if (data.status === 'FAILED') {
                     // Domain detection failed
-                    showError('Domain detection failed');
+                    showError('Domain detection failed. Please try again.');
+                } else if (data.status === 'PROCESSING') {
+                    // Still processing - update progress to show we're getting closer
+                    if (progress < 95) {
+                        progress = Math.min(progress + 1, 95);
+                        progressBar.style.width = progress + '%';
+                    }
                 }
                 // Otherwise, continue checking
             })
@@ -248,12 +262,10 @@
         // Set the analysis complete flag
         analysisCompleteField.value = "true";
         
-        // Auto-submit after a short delay if not in development
-        {% if not debug %}
+        // Auto-submit after a short delay
         setTimeout(function() {
-            detectForm.submit();
+            window.location.href = "{% url 'extractor:select_domains' pdf_id=pdf.id %}";
         }, 1500);
-        {% endif %}
     }
     
     // Function to show error state

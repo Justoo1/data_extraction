@@ -149,15 +149,21 @@ class EnhancedDomainDetector:
             List of DetectedDomain instances
         """
         try:
+            # Update status to PROCESSING
+            pdf_document.status = 'PROCESSING'
+            pdf_document.save()
+            
             # Get all SENDIG domains from database
             all_domains = {domain.code: domain for domain in SENDIGDomain.objects.all()}
             
             if not all_domains:
                 logger.warning("No SENDIG domains found in the database")
+                pdf_document.status = 'FAILED'
+                pdf_document.save()
                 return []
             
             # Extract comprehensive document data
-            logger.info("Extracting comprehensive document data...")
+            logger.info(f"Extracting comprehensive document data for PDF {pdf_document.id}...")
             page_data = self.pdf_service.extract_text_with_layout(pdf_document.file.path)
             
             # Extract tables with multiple methods
@@ -207,6 +213,7 @@ class EnhancedDomainDetector:
             pdf_document.status = 'ANALYZED'
             pdf_document.save()
             
+            logger.info(f"Successfully detected {len(detected_domains)} domains for PDF {pdf_document.id}")
             return detected_domains
             
         except Exception as e:
